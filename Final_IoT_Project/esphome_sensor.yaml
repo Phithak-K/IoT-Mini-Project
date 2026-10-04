@@ -1,0 +1,67 @@
+esphome:
+  name: sensor-node
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # ถ้า Wi-Fi หลุด ให้ลอง Connect ใหม่ตลอด
+  ap:
+    ssid: "Sensor-Node-Fallback"
+    password: "12345678"
+
+# ===== MQTT Config (Block เดียว รวมทุกอย่าง) =====
+mqtt:
+  broker: !secret mqtt_broker   # IP ของ Raspberry Pi
+  port: 1883
+  username: !secret mqtt_user
+  password: !secret mqtt_pass
+  topic_prefix: pkru/iot/sensor_node
+
+  # LWT: ถ้าบอร์ดหลุดกะทันหัน Broker จะส่งข้อความนี้แทนให้อัตโนมัติ
+  will_message:
+    topic: pkru/iot/sensor_node/status
+    payload: "OFFLINE"
+    retain: true
+
+  # แจ้งตัวเองเป็น ONLINE ทันทีที่เชื่อมต่อสำเร็จ
+  on_connect:
+    - mqtt.publish:
+        topic: pkru/iot/sensor_node/status
+        payload: "ONLINE"
+        retain: true
+
+sensor:
+  # เซ็นเซอร์อุณหภูมิและความชื้น DHT22 (ต่อที่ขา 4)
+  - platform: dht
+    pin: 4
+    temperature:
+      name: "Temperature"
+      id: temp_val
+    humidity:
+      name: "Humidity"
+      id: humi_val
+    model: DHT22
+    update_interval: 5s
+
+  # เซ็นเซอร์แสง LDR (ต่อที่ขา 34 - ADC)
+  - platform: adc
+    pin: 34
+    name: "Light Level"
+    id: light_val
+    update_interval: 5s
+    filters:
+      # แปลงค่า Voltage → lux (โดยประมาณ)
+      - multiply: 4000
+
+# ส่งข้อมูลเป็น JSON ทุกๆ 5 วินาที (ตามโจทย์ LAB 28.6)
+interval:
+  - interval: 5s
+    then:
+      - mqtt.publish_json:
+          topic: pkru/iot/sensor_node/data
+          payload: |-
+            root["temp"]  = id(temp_val).state;
+            root["humi"]  = id(humi_val).state;
+            root["light"] = id(light_val).state;

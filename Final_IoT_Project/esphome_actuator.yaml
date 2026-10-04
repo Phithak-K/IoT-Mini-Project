@@ -1,0 +1,71 @@
+esphome:
+  name: actuator-node
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Actuator-Node-Fallback"
+    password: "12345678"
+
+# ===== MQTT Config (Block เดียว รวมทุกอย่าง) =====
+mqtt:
+  broker: !secret mqtt_broker   # IP ของ Raspberry Pi
+  port: 1883
+  username: !secret mqtt_user
+  password: !secret mqtt_pass
+  topic_prefix: pkru/iot/actuator_node
+
+  # LWT: ถ้าบอร์ดหลุดกะทันหัน Broker จะแจ้ง OFFLINE ให้อัตโนมัติ
+  will_message:
+    topic: pkru/iot/actuator_node/status
+    payload: "OFFLINE"
+    retain: true
+
+  # แจ้งตัวเองเป็น ONLINE ทันทีที่เชื่อมต่อสำเร็จ
+  on_connect:
+    - mqtt.publish:
+        topic: pkru/iot/actuator_node/status
+        payload: "ONLINE"
+        retain: true
+
+  # ดักฟังคำสั่งจาก Gateway (Control Path: LAB 28.8, 28.11, 28.12)
+  on_message:
+    - topic: pkru/iot/actuator_node/cmd
+      payload: "ON"
+      then:
+        - switch.turn_on: relay_fan
+        # State Feedback: แจ้งยืนยันสถานะกลับไป (Control Verification)
+        - mqtt.publish:
+            topic: pkru/iot/actuator_node/state
+            payload: "ON"
+            retain: true
+
+    - topic: pkru/iot/actuator_node/cmd
+      payload: "OFF"
+      then:
+        - switch.turn_off: relay_fan
+        - mqtt.publish:
+            topic: pkru/iot/actuator_node/state
+            payload: "OFF"
+            retain: true
+
+switch:
+  # Relay Module ต่อพัดลม/ปั๊มน้ำ (ต่อที่ขา GPIO 5)
+  - platform: gpio
+    pin: 5
+    name: "Relay Fan"
+    id: relay_fan
+    # ส่งสถานะกลับมาทุกครั้งที่มีการเปลี่ยนแปลง
+    on_turn_on:
+      - mqtt.publish:
+          topic: pkru/iot/actuator_node/state
+          payload: "ON"
+          retain: true
+    on_turn_off:
+      - mqtt.publish:
+          topic: pkru/iot/actuator_node/state
+          payload: "OFF"
+          retain: true

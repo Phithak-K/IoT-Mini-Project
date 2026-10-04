@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  /* ปรับแต่ง theme ถ้าต้องการ */
+}
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-slate-100;
+  }
+}

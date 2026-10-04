@@ -1,0 +1,14 @@
+[Unit]
+Description=Integrated IoT Gateway Service
+After=network.target mosquitto.service
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/Final_IoT_Project/gateway.py
+WorkingDirectory=/home/pi/Final_IoT_Project
+StandardOutput=inherit
+StandardError=inherit
+Restart=on-failure
+User=pi
+
+[Install]
+WantedBy=multi-user.target
